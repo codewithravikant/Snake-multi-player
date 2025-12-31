@@ -4,7 +4,7 @@
   "description": "Multiplayer Snake Game Server",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js --enable-powerups",
+    "start": "NODE_ENV=production node index.js --enable-powerups",
     "dev": "nodemon index.js --enable-chat --enable-powerups --enable-accessibility",
     "chat": "node index.js --enable-chat",
     "powerups": "node index.js --enable-powerups",
