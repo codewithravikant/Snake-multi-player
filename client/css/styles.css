@@ -20,61 +20,61 @@ body {
 .join-container {
   background: white;
   border-radius: 10px;
-  padding: 40px;
+  padding: 34px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  max-width: 500px;
+  max-width: 425px;
   width: 100%;
 }
 
 .join-container h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 25.5px;
   color: #667eea;
-  font-size: 2em;
+  font-size: 1.7em;
 }
 
 .session-history {
-  margin-top: 24px;
-  padding: 16px;
+  margin-top: 20.4px;
+  padding: 13.6px;
   background: #f7f8ff;
   border-radius: 8px;
   border: 1px solid #e3e7ff;
 }
 
 .session-history h3 {
-  margin-bottom: 10px;
+  margin-bottom: 8.5px;
   color: #5a6fd6;
-  font-size: 1em;
+  font-size: 0.85em;
 }
 
 .public-rooms {
-  margin-top: 24px;
-  padding: 16px;
+  margin-top: 20.4px;
+  padding: 13.6px;
   background: #f7f8ff;
   border-radius: 8px;
   border: 1px solid #e3e7ff;
 }
 
 .public-rooms h3 {
-  margin-bottom: 10px;
+  margin-bottom: 8.5px;
   color: #5a6fd6;
-  font-size: 1em;
+  font-size: 0.85em;
 }
 
 .public-rooms-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8.5px;
 }
 
 .public-room-card {
   background: #fff;
   border: 1px solid #e3e7ff;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10.2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6.8px;
 }
 
 .public-room-card.empty {
@@ -87,11 +87,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8.5px;
 }
 
 .public-room-row.meta {
-  font-size: 0.9em;
+  font-size: 0.765em;
   color: #555;
 }
 
@@ -111,23 +111,23 @@ body {
 }
 
 .public-room-join {
-  padding: 5px 10px !important;
-  font-size: 11px !important;
+  padding: 4.25px 8.5px !important;
+  font-size: 9.35px !important;
   width: auto !important;
-  min-width: 60px;
+  min-width: 51px;
 }
 
 .public-toggle {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8.5px;
+  margin-bottom: 10.2px;
 }
 
 .pill {
-  padding: 4px 10px;
+  padding: 3.4px 8.5px;
   border-radius: 999px;
-  font-size: 0.85em;
+  font-size: 0.7225em;
   font-weight: 600;
 }
 
@@ -147,14 +147,14 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6.8px;
 }
 
 .session-history-item {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  font-size: 0.9em;
+  gap: 8.5px;
+  font-size: 0.765em;
   color: #444;
 }
 
@@ -163,12 +163,12 @@ body {
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 17px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6.8px;
   font-weight: 600;
   color: #555;
 }
@@ -195,7 +195,7 @@ body {
 /* Room code input styling - make it bigger and more visible */
 .room-code-input {
   display: flex;
-  gap: 12px;
+  gap: 10.2px;
   position: relative;
   align-items: center;
   width: 100%;
@@ -205,17 +205,17 @@ body {
   flex: 1 1 auto;
   position: relative;
   z-index: 1;
-  padding: 14px 16px;
+  padding: 11.9px 13.6px;
   border: 2px solid #e0e0e0;
   border-radius: 5px;
-  font-size: 18px;
+  font-size: 15.3px;
   font-weight: 600;
   font-family: 'Courier New', monospace;
   background: white;
   color: #333;
   text-transform: uppercase;
   letter-spacing: 2px;
-  min-width: 200px;
+  min-width: 170px;
   width: auto;
   box-sizing: border-box;
   margin: 0;
@@ -234,16 +234,16 @@ body {
   cursor: pointer;
   flex: 0 0 auto;
   flex-shrink: 0;
-  padding: 14px 24px !important;
+  padding: 11.9px 20.4px !important;
   border: 2px solid #e0e0e0 !important;
   border-radius: 5px !important;
-  font-size: 16px !important;
+  font-size: 13.6px !important;
   font-weight: 600 !important;
   background: #e0e0e0 !important;
   color: #333 !important;
   white-space: nowrap;
-  min-width: 120px;
-  max-width: 140px;
+  min-width: 102px;
+  max-width: 119px;
   width: auto;
   height: auto;
   line-height: 1.4;
@@ -259,18 +259,18 @@ body {
 }
 
 .btn-copy {
-  padding: 6px 16px;
+  padding: 5.1px 13.6px;
   background: #667eea;
   color: white;
   border: none;
   border-radius: 5px;
-  font-size: 14px;
+  font-size: 11.9px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
   flex-shrink: 0;
-  margin-left: 10px;
+  margin-left: 8.5px;
   display: inline-block;
 }
 
@@ -292,24 +292,24 @@ body {
 
 .error {
   color: #e74c3c;
-  font-size: 14px;
-  margin-top: 5px;
+  font-size: 11.9px;
+  margin-top: 4.25px;
   display: block;
 }
 
 /* Mode toggle styles */
 .mode-toggle {
   display: flex;
-  gap: 15px;
-  margin-top: 10px;
+  gap: 12.75px;
+  margin-top: 8.5px;
 }
 
 .mode-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6.8px;
   cursor: pointer;
-  padding: 10px 15px;
+  padding: 8.5px 12.75px;
   border: 2px solid #e0e0e0;
   border-radius: 5px;
   transition: all 0.3s;
@@ -338,15 +338,15 @@ body {
 /* Control scheme selection styles */
 .control-scheme-toggle {
   display: flex;
-  gap: 15px;
-  margin-top: 10px;
+  gap: 12.75px;
+  margin-top: 8.5px;
 }
 
 .control-option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 15px;
+  gap: 6.8px;
+  padding: 8.5px 12.75px;
   border: 2px solid #e0e0e0;
   border-radius: 5px;
   cursor: pointer;
@@ -375,10 +375,10 @@ body {
 
 .form-group select {
   width: 100%;
-  padding: 12px;
+  padding: 10.2px;
   border: 2px solid #e0e0e0;
   border-radius: 5px;
-  font-size: 16px;
+  font-size: 13.6px;
   background: white;
   cursor: pointer;
 }
@@ -389,10 +389,10 @@ body {
 }
 
 .btn-primary, .btn-secondary {
-  padding: 10px 20px;
+  padding: 8.5px 17px;
   border: none;
   border-radius: 5px;
-  font-size: 14px;
+  font-size: 11.9px;
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
