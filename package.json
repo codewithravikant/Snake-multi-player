@@ -10,8 +10,11 @@
     "lint:server": "eslint server/**/*.js",
     "lint:client": "eslint client/**/*.js"
   },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  },
   "devDependencies": {
     "eslint": "^8.57.0"
   }
 }
-
