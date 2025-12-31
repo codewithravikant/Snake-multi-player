@@ -56,6 +56,59 @@ function applyGridConfig(state) {
   }
 }
 
+// Function to update sound toggle icon
+function updateSoundToggleIcon() {
+  const soundToggleIcon = document.getElementById('soundToggleIcon');
+  const soundToggleButton = document.getElementById('soundToggleButton');
+  if (soundToggleIcon && audioManager) {
+    if (audioManager.enabled) {
+      soundToggleIcon.textContent = '🔊';
+      if (soundToggleButton) {
+        soundToggleButton.title = 'Sound: ON (Click to mute)';
+        soundToggleButton.style.opacity = '1';
+      }
+    } else {
+      soundToggleIcon.textContent = '🔇';
+      if (soundToggleButton) {
+        soundToggleButton.title = 'Sound: OFF (Click to unmute)';
+        soundToggleButton.style.opacity = '0.6';
+      }
+    }
+  }
+}
+
+// Function to setup sound toggle button
+function setupSoundToggle() {
+  const soundToggleButton = document.getElementById('soundToggleButton');
+  const soundToggleIcon = document.getElementById('soundToggleIcon');
+  
+  if (!soundToggleButton || !soundToggleIcon) {
+    return;
+  }
+  
+  // Load sound preference from localStorage
+  const soundEnabled = localStorage.getItem('gameSoundEnabled');
+  if (soundEnabled !== null && typeof audioManager !== 'undefined') {
+    audioManager.enabled = soundEnabled === 'true';
+  }
+  
+  // Update icon based on current state
+  updateSoundToggleIcon();
+  
+  // Remove any existing listeners by cloning
+  const newButton = soundToggleButton.cloneNode(true);
+  soundToggleButton.parentNode.replaceChild(newButton, soundToggleButton);
+  
+  // Add click handler
+  newButton.addEventListener('click', () => {
+    if (typeof audioManager !== 'undefined') {
+      audioManager.enabled = !audioManager.enabled;
+      localStorage.setItem('gameSoundEnabled', audioManager.enabled.toString());
+      updateSoundToggleIcon();
+    }
+  });
+}
+
 // Initialize game
 document.addEventListener('DOMContentLoaded', () => {
   // Get room and player from URL
@@ -127,59 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
         controlSchemeDisplay.textContent = 'Arrow Keys (↑/↓/←/→)';
       }
     }
-  }
-  
-  // Function to update sound toggle icon
-  function updateSoundToggleIcon() {
-    const soundToggleIcon = document.getElementById('soundToggleIcon');
-    const soundToggleButton = document.getElementById('soundToggleButton');
-    if (soundToggleIcon && audioManager) {
-      if (audioManager.enabled) {
-        soundToggleIcon.textContent = '🔊';
-        if (soundToggleButton) {
-          soundToggleButton.title = 'Sound: ON (Click to mute)';
-          soundToggleButton.style.opacity = '1';
-        }
-      } else {
-        soundToggleIcon.textContent = '🔇';
-        if (soundToggleButton) {
-          soundToggleButton.title = 'Sound: OFF (Click to unmute)';
-          soundToggleButton.style.opacity = '0.6';
-        }
-      }
-    }
-  }
-  
-  // Function to setup sound toggle button
-  function setupSoundToggle() {
-    const soundToggleButton = document.getElementById('soundToggleButton');
-    const soundToggleIcon = document.getElementById('soundToggleIcon');
-    
-    if (!soundToggleButton || !soundToggleIcon) {
-      return;
-    }
-    
-    // Load sound preference from localStorage
-    const soundEnabled = localStorage.getItem('gameSoundEnabled');
-    if (soundEnabled !== null && typeof audioManager !== 'undefined') {
-      audioManager.enabled = soundEnabled === 'true';
-    }
-    
-    // Update icon based on current state
-    updateSoundToggleIcon();
-    
-    // Remove any existing listeners by cloning
-    const newButton = soundToggleButton.cloneNode(true);
-    soundToggleButton.parentNode.replaceChild(newButton, soundToggleButton);
-    
-    // Add click handler
-    newButton.addEventListener('click', () => {
-      if (typeof audioManager !== 'undefined') {
-        audioManager.enabled = !audioManager.enabled;
-        localStorage.setItem('gameSoundEnabled', audioManager.enabled.toString());
-        updateSoundToggleIcon();
-      }
-    });
   }
   
   updateControlsDisplay(currentControlScheme);
@@ -676,6 +676,18 @@ function setupSocketListeners() {
       return;
     }
     
+    // Add timestamp to track update delay for lag handling
+    const updateTimestamp = performance.now();
+    const timeSinceLastUpdate = lastUpdateTime > 0 ? updateTimestamp - lastUpdateTime : 0;
+    
+    // For laggy connections, log warning if gap is too large (helps with debugging)
+    // Still process the update to prevent game from appearing frozen
+    if (timeSinceLastUpdate > 200) { // More than 200ms since last update
+      if (DEBUG) {
+        console.warn('Large gap between updates detected:', Math.round(timeSinceLastUpdate), 'ms - possible network lag');
+      }
+    }
+    
     // Store previous gameState for event detection before updating
     const previousGameStateForEvents = gameState;
     
@@ -725,7 +737,7 @@ function setupSocketListeners() {
     }
     
     window.gameState = gameState; // Update global reference for menu.js
-    lastUpdateTime = performance.now();
+    lastUpdateTime = updateTimestamp; // Update with current timestamp for lag tracking
     
     // Detect changes for sound effects (using previous state)
     if (previousGameStateForEvents) {
