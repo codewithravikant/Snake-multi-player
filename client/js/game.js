@@ -201,46 +201,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize sound toggle (but keep it hidden until game starts)
   setupSoundToggle();
   
-  // Set up HUD pause/resume button click handlers
-  const gameboardPauseButton = document.getElementById('gameboardPauseButton');
-  const gameboardResumeButton = document.getElementById('gameboardResumeButton');
-  
-  if (gameboardPauseButton) {
-    gameboardPauseButton.addEventListener('click', () => {
-      if (typeof pauseGame === 'function') {
-        pauseGame();
-      }
-    });
-  }
-  
-  if (gameboardResumeButton) {
-    // Leave game button (multiplayer only)
-    const leaveGameButton = document.getElementById('leaveGameButton');
-    if (leaveGameButton) {
-      leaveGameButton.addEventListener('click', () => {
-        if (confirm('Are you sure you want to leave the game?')) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const roomCode = urlParams.get('room');
-          
-          if (socket && socket.connected && roomCode) {
-            socket.emit('quitGame', {
-              roomCode: roomCode,
-              leaveType: 'alone'
-            });
-            showNotification('Leaving game...');
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 500);
-          } else {
+  // Leave game button (multiplayer only)
+  const leaveGameButton = document.getElementById('leaveGameButton');
+  if (leaveGameButton) {
+    leaveGameButton.addEventListener('click', () => {
+      if (confirm('Are you sure you want to leave the game?')) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        
+        if (socket && socket.connected && roomCode) {
+          socket.emit('quitGame', {
+            roomCode: roomCode,
+            leaveType: 'alone'
+          });
+          showNotification('Leaving game...');
+          setTimeout(() => {
             window.location.href = '/';
-          }
+          }, 500);
+        } else {
+          window.location.href = '/';
         }
-      });
-    }
-
-    gameboardResumeButton.addEventListener('click', () => {
-      if (typeof resumeGame === 'function') {
-        resumeGame();
       }
     });
   }
@@ -457,13 +437,6 @@ function setupSocketListeners() {
           pauseButton.style.display = 'inline-block';
         }
         
-        // Show HUD pause button on game board
-        const gameControlsHUD = document.getElementById('gameControlsHUD');
-        const gameboardPauseButton = document.getElementById('gameboardPauseButton');
-        if (gameControlsHUD && gameboardPauseButton) {
-          gameControlsHUD.style.display = 'block';
-          gameboardPauseButton.style.display = 'inline-block';
-        }
       }
       
       // Show sound toggle button when game starts (after countdown)
@@ -839,23 +812,12 @@ function setupSocketListeners() {
       window.gameState = gameState;
     }
     
-    // Update HUD button visibility
-    const gameboardPauseButton = document.getElementById('gameboardPauseButton');
-    const gameboardResumeButton = document.getElementById('gameboardResumeButton');
-    if (gameboardPauseButton && gameboardResumeButton) {
-      gameboardPauseButton.style.display = 'none';
-      gameboardResumeButton.style.display = 'inline-block';
+    // Show notification instead of overlay so countdown timer remains visible
+    const pauseMessage = data.pausedBy ? `${data.pausedBy} paused the game` : 'Game paused';
+    if (typeof showNotification === 'function') {
+      showNotification(pauseMessage);
     }
-    
-    // Check if this is an auto-pause due to inactivity (solo/single-player)
-    const isInactivityPause = data.pausedBy && data.pausedBy.includes('Inactive');
-    
-    if (isInactivityPause) {
-      // For inactivity pause, show message that game can be resumed
-      showOverlay('Game Paused', `${data.pausedBy}. Press any key or click Resume to continue.`);
-    } else {
-      showOverlay('Game Paused', `${data.pausedBy} paused the game`);
-    }
+    // Menu is already shown by menu.js when game is paused, so we don't need to show overlay
   });
 
   socket.on('resumeCountdown', (data) => {
@@ -897,12 +859,6 @@ function setupSocketListeners() {
     }
     
     // Update HUD button visibility
-    const gameboardPauseButton = document.getElementById('gameboardPauseButton');
-    const gameboardResumeButton = document.getElementById('gameboardResumeButton');
-    if (gameboardPauseButton && gameboardResumeButton) {
-      gameboardPauseButton.style.display = 'inline-block';
-      gameboardResumeButton.style.display = 'none';
-    }
     
     // Hide countdown timer box
     const countdownTimerBox = document.getElementById('countdownTimerBox');
@@ -1165,18 +1121,8 @@ function setupSocketListeners() {
       }
       
       // Update HUD pause button visibility
-      const gameControlsHUD = document.getElementById('gameControlsHUD');
-      const gameboardPauseButton = document.getElementById('gameboardPauseButton');
       if (window.isHost) {
-        if (gameControlsHUD && gameboardPauseButton) {
-          gameControlsHUD.style.display = 'block';
-          gameboardPauseButton.style.display = 'inline-block';
-        }
         showOverlay('You are now the host', 'You can now pause/resume the game for everyone.');
-      } else {
-        if (gameControlsHUD && gameboardPauseButton) {
-          gameboardPauseButton.style.display = 'none';
-        }
       }
       // Show notification for all
       if (typeof showNotification === 'function') {
@@ -2093,10 +2039,38 @@ function hideOverlay() {
   }
 }
 
+// Helper function to send quitGame for solo/single-player modes
+function quitGameOnNavigation() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomCode = urlParams.get('room');
+  
+  // Check if this is a solo/single-player game (room code starts with 'SP')
+  const isSoloOrSinglePlayer = !roomCode || roomCode.startsWith('SP');
+  
+  // Only quit if it's solo/single-player and we have an active game
+  if (isSoloOrSinglePlayer && roomCode && gameState) {
+    const socketToUse = (typeof window !== 'undefined' && window.socket) ? window.socket : socket;
+    if (socketToUse && socketToUse.connected) {
+      // Send quitGame event to end the game on server
+      socketToUse.emit('quitGame', {
+        roomCode: roomCode,
+        leaveType: 'withParty' // Always end game for solo/single-player
+      });
+    }
+  }
+}
+
+// Detect back button navigation
+window.addEventListener('popstate', (event) => {
+  quitGameOnNavigation();
+});
+
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
   }
-  // Don't call socket.disconnect() - let server handle disconnect naturally
+  
+  // Send quitGame for solo/single-player modes before page unloads
+  quitGameOnNavigation();
 });

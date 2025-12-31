@@ -28,6 +28,7 @@ body.game-page {
   position: relative;
   width: 100%;
   min-height: 80px;
+  z-index: 100;
 }
 
 .score-board {
@@ -112,6 +113,8 @@ body.game-page {
   align-items: flex-end;
   flex: 1;
   max-width: 300px;
+  position: relative;
+  z-index: 100;
 }
 
 .timer {
@@ -122,6 +125,18 @@ body.game-page {
   font-size: 1.2em;
   font-weight: 600;
   color: #667eea;
+  position: relative;
+  z-index: 100;
+}
+
+.header-controls {
+  position: relative;
+  z-index: 100;
+}
+
+.btn-sound-toggle {
+  position: relative;
+  z-index: 100;
 }
 
 /* Game board */
@@ -222,7 +237,7 @@ body.game-page {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 2500; /* Higher than countdown timer (2000) */
   border-radius: 10px;
 }
 

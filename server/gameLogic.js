@@ -1230,15 +1230,131 @@ function checkPlayerInactivity(gameState, room, ioInstance) {
           });
         }
       } else {
-        // Solo/single-player: Auto-pause game for inactive player
-        // Only auto-pause if game hasn't already ended
-        if (gameState.winner === null) {
-          // Use the proper pauseGame function to ensure all pause state is set correctly
-          pauseGame(room, ioInstance);
-          room.pausedBy = `${player.name} (Inactive for 60+ seconds)`;
-          ioInstance.to(room.code).emit('gamePaused', {
-            pausedBy: `${player.name} (Inactive for 60+ seconds)`
+        // Solo/single-player: Check if player is disconnected
+        const roomPlayer = room.players.get(playerId);
+        const isDisconnected = !roomPlayer || !roomPlayer.socketId;
+        
+        if (isDisconnected) {
+          // Player is disconnected and inactive: end the game immediately
+          console.log(`Player ${player.name} is disconnected and inactive in ${room.gameMode} game, ending game`);
+          
+          // Mark player as dead in game state
+          player.isAlive = false;
+          
+          // Cancel power-ups if enabled
+          if (room.enablePowerups) {
+            const powerups = require('./powerups');
+            if (powerups && powerups.cancelPlayerPowerUps) {
+              powerups.cancelPlayerPowerUps(player);
+            }
+          }
+          
+          // Check win condition (player loses)
+          checkWinCondition(gameState, false, room);
+          
+          // Stop game loop and end game
+          room.isGameActive = false;
+          stopGameLoop(room);
+          
+          // Prepare player status information
+          const players = Object.values(gameState.players);
+          const alivePlayers = players.filter(p => p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+          const deadPlayers = players.filter(p => !p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+          
+          // Update session record (similar to normal game end flow)
+          if (gameSessions && rooms) {
+            const sessionId = room.sessionId || `unknown-${Date.now()}`;
+            
+            if (gameSessions.has(sessionId)) {
+              const session = gameSessions.get(sessionId);
+              session.endTime = Date.now();
+              session.endReason = 'player_inactive_disconnected';
+              session.winner = gameState.winner ? {
+                id: gameState.winner.id,
+                name: gameState.winner.name,
+                score: gameState.winner.score
+              } : null;
+              session.players = players.map(p => ({
+                id: p.id,
+                name: p.name,
+                type: p.type || 'human',
+                isAlive: p.isAlive,
+                score: p.score
+              }));
+            }
+          }
+          
+          // Emit gameEnded event
+          ioInstance.to(room.code).emit('gameEnded', {
+            winner: gameState.winner,
+            gameState: gameState,
+            gameMode: room.gameMode,
+            alivePlayers: alivePlayers,
+            deadPlayers: deadPlayers,
+            roomCode: room.code
           });
+        } else {
+          // Solo/single-player: Player is connected but inactive - end the game (consistent with multiplayer kick behavior)
+          // Only end if game hasn't already ended
+          if (gameState.winner === null) {
+            console.log(`Player ${player.name} is inactive for 60+ seconds in ${room.gameMode} game, ending game`);
+            
+            // Mark player as dead in game state
+            player.isAlive = false;
+            
+            // Cancel power-ups if enabled
+            if (room.enablePowerups) {
+              const powerups = require('./powerups');
+              if (powerups && powerups.cancelPlayerPowerUps) {
+                powerups.cancelPlayerPowerUps(player);
+              }
+            }
+            
+            // Check win condition (player loses)
+            checkWinCondition(gameState, false, room);
+            
+            // Stop game loop and end game
+            room.isGameActive = false;
+            stopGameLoop(room);
+            
+            // Prepare player status information
+            const players = Object.values(gameState.players);
+            const alivePlayers = players.filter(p => p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+            const deadPlayers = players.filter(p => !p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+            
+            // Update session record
+            if (gameSessions && rooms) {
+              const sessionId = room.sessionId || `unknown-${Date.now()}`;
+              
+              if (gameSessions.has(sessionId)) {
+                const session = gameSessions.get(sessionId);
+                session.endTime = Date.now();
+                session.endReason = 'player_inactive';
+                session.winner = gameState.winner ? {
+                  id: gameState.winner.id,
+                  name: gameState.winner.name,
+                  score: gameState.winner.score
+                } : null;
+                session.players = players.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  type: p.type || 'human',
+                  isAlive: p.isAlive,
+                  score: p.score
+                }));
+              }
+            }
+            
+            // Emit gameEnded event (game ends, player loses due to inactivity)
+            ioInstance.to(room.code).emit('gameEnded', {
+              winner: gameState.winner,
+              gameState: gameState,
+              gameMode: room.gameMode,
+              alivePlayers: alivePlayers,
+              deadPlayers: deadPlayers,
+              roomCode: room.code
+            });
+          }
         }
       }
     }
