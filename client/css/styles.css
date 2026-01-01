@@ -47,6 +47,23 @@ body {
   font-size: 0.85em;
 }
 
+.game-warning {
+  margin-top: 15px;
+  padding: 12px 16px;
+  background: rgba(231, 76, 60, 0.5);
+  border: 1px solid rgba(231, 76, 60, 0.7);
+  border-radius: 8px;
+  color: #c0392b;
+  font-size: 0.9em;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.game-warning strong {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
 .public-rooms {
   margin-top: 20.4px;
   padding: 13.6px;
