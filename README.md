@@ -503,3 +503,7 @@ Share the generated URL with players.
   sudo kill -9 <PID>
   ```
 - Or use a different port: `PORT=8080 npm start`
+
+## Screenshots
+
+![Game Screenshot](screenshot.png)
