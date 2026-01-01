@@ -55,7 +55,16 @@ function applyGridConfig(state) {
     }
   }
 }
-
+// Update wall mode visual indicator
+function updateWallModeIndicator() {
+  if (!gameBoard) return;
+  
+  if (gameState && gameState.wallMode === true) {
+    gameBoard.classList.add('wall-mode');
+  } else {
+    gameBoard.classList.remove('wall-mode');
+  }
+}
 // Function to update sound toggle icon
 function updateSoundToggleIcon() {
   const soundToggleIcon = document.getElementById('soundToggleIcon');
@@ -131,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pending.roomCode) {
           currentRoomCode = pending.roomCode;
         }
+        updateWallModeIndicator();
         sessionStorage.removeItem('pendingGameState');
         
         // Initialize board and render immediately if we have game state
@@ -610,6 +620,8 @@ function setupSocketListeners() {
       if (!gameBoard || cells.length === 0) {
         initializeGameBoard();
       }
+       // Update wall mode indicator after board is initialized
+       setTimeout(() => updateWallModeIndicator(), 0);
       
       // startGameLoop() will handle rendering, don't call renderGame() here
       // Just ensure the loop is started if not already running
@@ -699,6 +711,9 @@ function setupSocketListeners() {
     
     gameState = data.gameState;
     applyGridConfig(gameState);
+
+    // Update wall mode indicator
+    updateWallModeIndicator();
     
     // If we had a local pause and incoming state says unpaused, preserve the pause
     if (wasLocallyPaused && !incomingIsPaused) {
@@ -943,6 +958,7 @@ function setupSocketListeners() {
       gameState = data.gameState;
       applyGridConfig(gameState);
       window.gameState = gameState;
+      updateWallModeIndicator();
     }
     
     // Stop rendering when game ends
@@ -1711,6 +1727,8 @@ function restartGameWithData(socketToUse, gameData) {
       previousSnakePositions.clear();
       previousFoodPositions.clear();
       lastUpdateTime = performance.now();
+      updateWallModeIndicator();
+      updateWallModeIndicator();
       
       if (typeof window !== 'undefined' && window.devLog) {
         window.devLog.log('Game state updated, restart successful');
