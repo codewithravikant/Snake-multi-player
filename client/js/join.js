@@ -6,6 +6,24 @@ let roomIsPublic = false;
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Join.js: DOMContentLoaded fired');
   
+  // Hide server config section on production (Railway) - only show on localhost
+  const serverConfigSection = document.getElementById('serverConfigSection');
+  if (serverConfigSection) {
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname.startsWith('192.168.') ||
+                       window.location.hostname.startsWith('10.') ||
+                       window.location.hostname.startsWith('172.');
+    
+    if (!isLocalhost) {
+      // Hide server config on production (Railway)
+      serverConfigSection.style.display = 'none';
+    } else {
+      // Show server config on localhost
+      serverConfigSection.style.display = 'block';
+    }
+  }
+  
   const joinForm = document.getElementById('joinForm');
   const waitingRoom = document.getElementById('waitingRoom');
   const playerNameInput = document.getElementById('playerName');
