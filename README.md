@@ -506,4 +506,8 @@ Share the generated URL with players.
 
 ## Screenshots
 
-![Game Screenshot](screenshot.png)
+### Game Configuration Screen
+![Game Configuration Screen](screenshot/Screenshot%202026-01-01%20at%2015.55.39.png)
+
+### Gameplay Screen
+![Gameplay Screen](screenshot/Screenshot%202026-01-01%20at%2015.56.33.png)
