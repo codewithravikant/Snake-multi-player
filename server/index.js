@@ -294,12 +294,15 @@ io.on('connection', (socket) => {
         
         // Check if room still exists - if not, mark as ended
         const roomExists = session.roomCode && rooms.has(session.roomCode);
-        const endTime = session.endTime || null;
+        let endTime = session.endTime || null;
         
-        // Check if game has actually started and is still running
+        // If session already has endTime (marked as ended on disconnect), use it
+        // Otherwise, check if game is still active
         let isGameActuallyStarted = false;
         let shouldMarkAsEnded = false;
-        if (roomExists) {
+        
+        // Only check game status if session doesn't already have an endTime
+        if (!endTime && roomExists) {
           const room = rooms.get(session.roomCode);
           
           // Check if game loop is actually running (access gameLoops from gameLogic)
@@ -326,18 +329,20 @@ io.on('connection', (socket) => {
         
         // If session has no endTime but room doesn't exist, mark it as ended
         if (!endTime && !roomExists && session.roomCode) {
-          session.endTime = Date.now();
+          endTime = Date.now();
+          session.endTime = endTime;
           session.endReason = 'room_not_found';
         } else if (!endTime && shouldMarkAsEnded) {
           // Room exists but game is not active (game ended)
-          session.endTime = Date.now();
+          endTime = Date.now();
+          session.endTime = endTime;
           session.endReason = 'game_ended';
         }
         
         // If session has no endTime, room exists, but game hasn't started yet, don't mark as active
         // (game is in waiting/countdown phase)
         
-        const finalEndTime = session.endTime || null;
+        const finalEndTime = endTime || null;
         const durationMs = (finalEndTime || Date.now()) - session.startTime;
         return {
           sessionId: session.sessionId || sessionId, // Use sessionId from object or Map key
@@ -515,36 +520,8 @@ io.on('connection', (socket) => {
       room.publicCreatedAt = null;
     }
 
-    if (room.playerTokens && room.playerTokens.has(playerToken)) {
-      const existingPlayerId = room.playerTokens.get(playerToken);
-      const existingPlayer = room.players.get(existingPlayerId);
-      if (existingPlayer) {
-        if (existingPlayer.disconnectTimeoutId) {
-          clearTimeout(existingPlayer.disconnectTimeoutId);
-          existingPlayer.disconnectTimeoutId = null;
-        }
-        existingPlayer.socketId = socket.id;
-        existingPlayer.controlScheme = controlScheme || existingPlayer.controlScheme;
-        existingPlayer.disconnected = false;
-        existingPlayer.disconnectedAt = null;
-
-        mapSocketToPlayer(room, socket.id, existingPlayerId);
-        socket.join(roomCode);
-
-        socket.emit('joinedRoom', {
-          playerId: existingPlayerId,
-          isHost: existingPlayer.isHost,
-          roomCode,
-          gameMode: room.gameMode,
-          gameOptions: room.gameOptions,
-          playerToken,
-          isPublic: room.isPublic || false
-        });
-
-        devLog.log(`Player ${existingPlayer.name} reconnected to room ${roomCode}`);
-        return;
-      }
-    }
+    // Reconnection disabled - sessions expire immediately on refresh/disconnect
+    // Removed reconnection logic to ensure players must rejoin after refresh
 
     // Check if room is in single-player mode
     if (room.gameMode === 'single-player') {
@@ -1207,13 +1184,15 @@ io.on('connection', (socket) => {
     }
     
     // For multiplayer games, ensure player is in room
+    // Reconnection disabled - sessions expire immediately on refresh
     if (room.gameMode === 'multi-player' && room.gameState) {
       let playerId = getPlayerIdFromSocket(room, socket.id);
-      if (!playerId && playerToken && room.playerTokens && room.playerTokens.has(playerToken)) {
-        playerId = room.playerTokens.get(playerToken);
-      }
+      // Removed playerToken reconnection - player must be connected via socket ID
+      // If player disconnected, their token was deleted and they cannot reconnect
 
       const player = playerId ? room.players.get(playerId) : null;
+      
+      // If player doesn't exist, they need to join first
       if (!player) {
         socket.emit('gameStateError', {
           message: 'Player not found. Please rejoin the room.',
@@ -1222,6 +1201,16 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Reconnection disabled - if player was disconnected, they cannot reconnect
+      if (player.disconnected) {
+        socket.emit('gameStateError', {
+          message: 'Session expired. Please rejoin the room.',
+          roomCode: roomCode
+        });
+        return;
+      }
+
+      // Player is connected and not disconnected - allow access
       if (player.disconnectTimeoutId) {
         clearTimeout(player.disconnectTimeoutId);
         player.disconnectTimeoutId = null;
@@ -1232,26 +1221,8 @@ io.on('connection', (socket) => {
       if (room.countdownActive && room.countdownValue !== null) {
         socket.emit('gameCountdown', { countdown: room.countdownValue });
       }
-
-      if (player.disconnected) {
-        const now = Date.now();
-        const canRestore = player.disconnectedAt && (now - player.disconnectedAt) <= 10000;
-        if (canRestore && room.gameState.players[playerId]) {
-          room.gameState.players[playerId].isAlive = true;
-          devLog.log(`Restored alive status for reconnected player ${player.name}`);
-        }
-        player.disconnected = false;
-        player.disconnectedAt = null;
-      }
       
-      // Cancel room cleanup timeout if player reconnected
-      if (roomCleanupTimeouts.has(roomCode)) {
-        clearTimeout(roomCleanupTimeouts.get(roomCode));
-        roomCleanupTimeouts.delete(roomCode);
-        console.log(`Cancelled room cleanup timeout for ${roomCode} - player reconnected`);
-      }
-      
-      // Restart game loop if it's not active but game state exists (player reconnected)
+      // Restart game loop if it's not active but game state exists (only for currently connected players)
       // BUT: Don't start if countdown is active or game hasn't started yet
       const gameLoops = gameLogic.gameLoops || new Map();
       const hasGameLoop = gameLoops.has(roomCode);
@@ -1336,11 +1307,12 @@ io.on('connection', (socket) => {
       const hasGameLoop = gameLoops.has(roomCode);
       
       let playerId = getPlayerIdFromSocket(room, socket.id);
-      if (!playerId && playerToken && room.playerTokens && room.playerTokens.has(playerToken)) {
-        playerId = room.playerTokens.get(playerToken);
-      }
+      // Removed playerToken reconnection - player must be connected via socket ID
+      // If player disconnected, their token was deleted and they cannot reconnect
 
       let player = playerId ? room.players.get(playerId) : null;
+      
+      // For single-player/solo, find the human player if not found by socket
       if (!player) {
         player = Array.from(room.players.values()).find(p => p.type === 'human') || null;
         playerId = player ? player.id : null;
@@ -1352,6 +1324,30 @@ io.on('connection', (socket) => {
           roomCode: roomCode
         });
         return;
+      }
+
+      // For single-player/solo: allow reconnection to own game (it's their solo game)
+      // For multiplayer: reconnection disabled - sessions expire immediately on refresh
+      if (player.disconnected && room.gameMode === 'multi-player') {
+        socket.emit('gameStateError', {
+          message: 'Session expired. Please rejoin the room.',
+          roomCode: roomCode
+        });
+        return;
+      }
+
+      // For single-player/solo: allow reconnection, clear disconnected status, restore alive status
+      if (player.disconnected) {
+        player.disconnected = false;
+        player.disconnectedAt = null;
+        
+        // Restore player's alive status if game state exists
+        if (room.gameState && room.gameState.players[playerId]) {
+          room.gameState.players[playerId].isAlive = true;
+          devLog.log(`Restored alive status for reconnected player ${player.name} in single-player game`);
+        }
+        
+        devLog.log(`Reconnected player ${player.name} to single-player game in room ${roomCode}`);
       }
 
       player.socketId = socket.id;
@@ -1573,6 +1569,56 @@ io.on('connection', (socket) => {
 
     const player = getPlayerBySocket(room, socket.id);
     if (!player || player.type !== 'human') {
+      return;
+    }
+    
+    // For solo/single-player modes: always end the game completely
+    if (room.gameMode === 'solo' || room.gameMode === 'single-player') {
+      console.log(`Player ${player.name} quit ${room.gameMode} game, ending game`);
+      
+      // Mark player as dead in game state
+      if (room.gameState && room.gameState.players[player.id]) {
+        const gameStatePlayer = room.gameState.players[player.id];
+        gameStatePlayer.isAlive = false;
+        if (room.enablePowerups) {
+          const powerups = require('./powerups');
+          if (powerups && powerups.cancelPlayerPowerUps) {
+            powerups.cancelPlayerPowerUps(gameStatePlayer);
+          }
+        }
+      }
+      
+      // Check win condition (player loses)
+      if (room.gameState) {
+        gameLogic.checkWinCondition(room.gameState, false, room);
+      }
+      
+      // Stop game loop and end game
+      room.isGameActive = false;
+      gameLogic.stopGameLoop(room);
+      
+      // Prepare player status information
+      const players = room.gameState ? Object.values(room.gameState.players) : [];
+      const alivePlayers = players.filter(p => p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+      const deadPlayers = players.filter(p => !p.isAlive).map(p => ({ id: p.id, name: p.name, type: p.type, score: p.score }));
+      
+      // Emit gameEnded event
+      if (room.gameState) {
+        io.to(roomCode).emit('gameEnded', {
+          winner: room.gameState.winner,
+          gameState: room.gameState,
+          gameMode: room.gameMode,
+          alivePlayers: alivePlayers,
+          deadPlayers: deadPlayers,
+          roomCode: roomCode
+        });
+      }
+      
+      // Mark session as ended and clean up
+      markSessionAsEnded(roomCode, 'player_quit');
+      removePublicRoom(roomCode);
+      rooms.delete(roomCode);
+      
       return;
     }
     
@@ -1830,8 +1876,24 @@ io.on('connection', (socket) => {
          broadcastPublicRooms(io);
        }
 
+      // Immediately mark session as ended when player disconnects (page refresh)
+      if (room.sessionId && gameSessions.has(room.sessionId)) {
+        const session = gameSessions.get(room.sessionId);
+        if (!session.endTime) {
+          session.endTime = Date.now();
+          session.endReason = 'page_refresh_disconnect';
+          devLog.log(`Session ${room.sessionId} marked as ended immediately on disconnect`);
+        }
+      }
+
       if (room.socketToPlayerId) {
         room.socketToPlayerId.delete(socket.id);
+      }
+
+      // Delete player token immediately on disconnect to prevent reconnection
+      if (room.playerTokens && player.token) {
+        room.playerTokens.delete(player.token);
+        devLog.log(`Deleted player token for ${player.name} on disconnect - session expired`);
       }
 
       if (room.isGameActive) {
@@ -1839,8 +1901,19 @@ io.on('connection', (socket) => {
         player.disconnectedAt = Date.now();
         player.socketId = null;
 
-        if (room.gameMode === 'single-player') {
-          console.log(`Player ${player.name} disconnected from single-player game, game continues`);
+        // For solo/single-player modes: pause game on disconnect, allow reconnection
+        // (Multiplayer: sessions expire immediately, no reconnection)
+        if (room.gameMode === 'solo' || room.gameMode === 'single-player') {
+          console.log(`Player ${player.name} disconnected from ${room.gameMode} game, pausing game (allowing reconnection)`);
+          
+          // Pause the game instead of ending it - player can reconnect
+          room.isGameActive = false;
+          room.isPaused = true;
+          gameLogic.stopGameLoop(room);
+          
+          // Don't mark player as dead or end game - allow reconnection
+          // Don't continue with disconnect logic - just pause
+          break;
         } else if (room.gameMode === 'multi-player') {
           // Store wasHost BEFORE any changes
           const wasHost = player.isHost;
@@ -1966,7 +2039,11 @@ io.on('connection', (socket) => {
           }
         }
       } else if (room.gameState && room.gameMode === 'multi-player') {
-        // Pre-start multiplayer: keep player for a short grace period to allow reconnect after redirect.
+        // Pre-start multiplayer: delete token immediately to prevent reconnection
+        if (room.playerTokens && player.token) {
+          room.playerTokens.delete(player.token);
+          devLog.log(`Deleted player token for ${player.name} on pre-start disconnect - session expired`);
+        }
         player.disconnected = true;
         player.disconnectedAt = Date.now();
         player.socketId = null;

@@ -47,9 +47,9 @@ function createChatUI() {
     </div>
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-container">
-      <input type="text" id="chatInput" placeholder="Type a message..." maxlength="100">
-      <button id="chatSend" class="chat-send-btn">Send</button>
+      <input type="text" id="chatInput" placeholder="Press Enter to send" maxlength="100">
     </div>
+    <div class="chat-resize-handle"></div>
   `;
 
   document.body.appendChild(chatContainer);
@@ -67,35 +67,99 @@ function createChatUI() {
     }
   });
 
-  // Send button - use event delegation to ensure it works
-  const chatSendBtn = document.getElementById('chatSend');
-  if (chatSendBtn) {
-    chatSendBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      sendChatMessage();
-    });
-    // Also ensure pointer events are enabled
-    chatSendBtn.style.pointerEvents = 'auto';
-    chatSendBtn.style.cursor = 'pointer';
-  }
+  // Initialize chat resizing
+  initChatResize();
 }
+
+// Chat resizing functionality
+function initChatResize() {
+  const chatContainer = document.getElementById('chatContainer');
+  const resizeHandle = chatContainer.querySelector('.chat-resize-handle');
+  
+  if (!chatContainer || !resizeHandle) {
+    return;
+  }
+
+  let isResizing = false;
+  let startX, startY, startWidth, startHeight;
+
+  resizeHandle.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = parseInt(document.defaultView.getComputedStyle(chatContainer).width, 10);
+    startHeight = parseInt(document.defaultView.getComputedStyle(chatContainer).height, 10);
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    const width = startWidth + (e.clientX - startX);
+    const height = startHeight + (e.clientY - startY);
+
+    // Minimum size: 150px × 150px
+    // Maximum size: 600px × 800px
+    const minWidth = 150;
+    const minHeight = 150;
+    const maxWidth = 600;
+    const maxHeight = 800;
+
+    const newWidth = Math.max(minWidth, Math.min(maxWidth, width));
+    const newHeight = Math.max(minHeight, Math.min(maxHeight, height));
+
+    chatContainer.style.width = newWidth + 'px';
+    chatContainer.style.height = newHeight + 'px';
+
+    // Adjust messages container height
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+      const headerHeight = chatContainer.querySelector('.chat-header').offsetHeight;
+      const inputHeight = chatContainer.querySelector('.chat-input-container').offsetHeight;
+      const messagesHeight = newHeight - headerHeight - inputHeight;
+      chatMessages.style.height = messagesHeight + 'px';
+      chatMessages.style.maxHeight = messagesHeight + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    isResizing = false;
+  });
+}
+
+// Store original height for restore
+let chatOriginalHeight = null;
 
 function toggleChat() {
   const chatContainer = document.getElementById('chatContainer');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const toggleBtn = document.getElementById('chatToggle');
+  const resizeHandle = chatContainer.querySelector('.chat-resize-handle');
 
   chatVisible = !chatVisible;
 
   if (chatVisible) {
-    chatMessages.style.display = 'block';
-    chatInput.style.display = 'block';
+    // Restore previous height or use default
+    if (chatOriginalHeight) {
+      chatContainer.style.height = chatOriginalHeight;
+    } else {
+      chatContainer.style.height = '212.5px';
+    }
+    chatMessages.style.display = 'flex';
+    chatInput.style.display = 'flex';
+    if (resizeHandle) resizeHandle.style.display = 'block';
     toggleBtn.textContent = '−';
   } else {
+    // Store current height before minimizing
+    chatOriginalHeight = chatContainer.style.height || '212.5px';
+    
+    // Minimize to header height only
+    const headerHeight = chatContainer.querySelector('.chat-header').offsetHeight;
+    chatContainer.style.height = headerHeight + 'px';
     chatMessages.style.display = 'none';
     chatInput.style.display = 'none';
+    if (resizeHandle) resizeHandle.style.display = 'none';
     toggleBtn.textContent = '+';
   }
 }

@@ -2,6 +2,9 @@
 
 A real-time multiplayer Snake game built with Node.js, Express, Socket.io, and vanilla JavaScript. Supports 2-4 players with smooth 60 FPS DOM-based rendering (no canvas required).
 
+## Test link
+https://snake-bite.up.railway.app/
+
 ## Features
 
 ### Core Features
@@ -154,9 +157,10 @@ multi-player/
 │   ├── index.html            # Join screen
 │   ├── game.html             # Game screen
 │   ├── css/
-│   │   ├── styles.css        # Main styles
+│   │   ├── styles.css         # Main styles
 │   │   ├── game.css          # Game-specific styles
-│   │   └── accessibility.css # Accessibility styles
+│   │   ├── accessibility.css # Accessibility styles
+│   │   └── welcome.css       # Welcome screen styles
 │   ├── js/
 │   │   ├── join.js           # Join screen logic
 │   │   ├── game.js           # Main game loop, DOM rendering
@@ -166,9 +170,12 @@ multi-player/
 │   │   ├── client.js         # Socket.io client communication
 │   │   ├── chat.js           # Chat functionality
 │   │   ├── powerups.js       # Power-up rendering/logic
-│   │   └── accessibility.js # Accessibility features
+│   │   ├── accessibility.js # Accessibility features
+│   │   └── welcome.js        # Welcome screen logic
 │   └── assets/
-│       └── sounds/           # Sound effect files (optional)
+│       ├── images/
+│       │   └── welcome/      # Welcome screen images
+│       └── sounds/            # Sound effect files (optional)
 ├── README.md                 # This file
 ├── CONNECTION_GUIDE.md       # Connection guide for players
 ├── Procfile                  # Deployment configuration
