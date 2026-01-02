@@ -65,6 +65,7 @@ function updateWallModeIndicator() {
     gameBoard.classList.remove('wall-mode');
   }
 }
+
 // Function to update sound toggle icon
 function updateSoundToggleIcon() {
   const soundToggleIcon = document.getElementById('soundToggleIcon');
@@ -623,6 +624,7 @@ function setupSocketListeners() {
        // Update wall mode indicator after board is initialized
        setTimeout(() => updateWallModeIndicator(), 0);
       
+      
       // startGameLoop() will handle rendering, don't call renderGame() here
       // Just ensure the loop is started if not already running
       if (!animationFrameId) {
@@ -654,6 +656,9 @@ function setupSocketListeners() {
       console.error('gameStarted event received but no gameState!');
     }
   });
+
+  // Track inactivity warning state
+  let lastInactivityWarningState = false;
 
   socket.on('gameStateUpdate', (data) => {
     if (!data || !data.gameState) {
@@ -711,10 +716,11 @@ function setupSocketListeners() {
     
     gameState = data.gameState;
     applyGridConfig(gameState);
-
-    // Update wall mode indicator
+    
+    // Update wall mode indicator after gameState is updated
     updateWallModeIndicator();
     
+
     // If we had a local pause and incoming state says unpaused, preserve the pause
     if (wasLocallyPaused && !incomingIsPaused) {
       gameState.isPaused = true;
@@ -732,6 +738,32 @@ function setupSocketListeners() {
       detectGameEvents(previousGameStateForEvents, gameState);
     }
     
+    // Check if inactivity warning was cleared (player moved)
+    if (gameState && gameState.inactivityWarnings && currentPlayerId) {
+      const hasWarning = gameState.inactivityWarnings[currentPlayerId] === true;
+      const overlay = document.getElementById('gameOverlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      
+      // If warning was cleared (was true, now false/undefined), hide overlay
+      if (lastInactivityWarningState && !hasWarning && overlay && overlay.style.display !== 'none') {
+        if (overlayTitle && overlayTitle.textContent.includes('Inactivity Warning')) {
+          hideOverlay();
+          // Reset pointer events
+          overlay.style.pointerEvents = '';
+          const overlayContent = overlay.querySelector('.overlay-content');
+          if (overlayContent) {
+            overlayContent.style.pointerEvents = '';
+          }
+        }
+      }
+      
+      // Update last state
+      lastInactivityWarningState = hasWarning;
+    } else if (lastInactivityWarningState) {
+      // If inactivityWarnings doesn't exist or playerId not found, clear state
+      lastInactivityWarningState = false;
+    }
+    
     // Server is the ONLY authority for game end - don't check winner here
     // Game over will be handled by 'gameEnded' socket event only
   });
@@ -739,8 +771,18 @@ function setupSocketListeners() {
   socket.on('inactivityWarning', (data) => {
     // Show warning to player about inactivity (multiplayer only)
     if (data && data.message) {
-      // Show persistent warning overlay
+      // Show persistent warning overlay (non-blocking - allows input to pass through)
+      const overlay = document.getElementById('gameOverlay');
+      if (overlay) {
+        // Make overlay non-blocking so player can still press keys
+        overlay.style.pointerEvents = 'none';
+        const overlayContent = overlay.querySelector('.overlay-content');
+        if (overlayContent) {
+          overlayContent.style.pointerEvents = 'auto'; // Content is still clickable
+        }
+      }
       showOverlay('⚠️ Inactivity Warning', data.message);
+      lastInactivityWarningState = true; // Track that warning is active
       // Auto-hide after 10 seconds, but player can dismiss it
       setTimeout(() => {
         const overlay = document.getElementById('gameOverlay');
@@ -749,6 +791,13 @@ function setupSocketListeners() {
           const overlayTitle = document.getElementById('overlayTitle');
           if (overlayTitle && overlayTitle.textContent.includes('Inactivity Warning')) {
             hideOverlay();
+            lastInactivityWarningState = false;
+            // Reset pointer events
+            overlay.style.pointerEvents = '';
+            const overlayContent = overlay.querySelector('.overlay-content');
+            if (overlayContent) {
+              overlayContent.style.pointerEvents = '';
+            }
           }
         }
       }, 10000);

@@ -290,6 +290,25 @@ function handleKeyDown(e) {
     return; // Don't send input when paused
   }
 
+  // Hide inactivity warning overlay immediately when player moves (before server response)
+  const overlay = document.getElementById('gameOverlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  if (overlay && overlayTitle && overlayTitle.textContent.includes('Inactivity Warning')) {
+    // Hide overlay immediately - player is active again
+    overlay.style.display = 'none';
+    // Reset pointer events
+    overlay.style.pointerEvents = '';
+    const overlayContent = overlay.querySelector('.overlay-content');
+    if (overlayContent) {
+      overlayContent.style.pointerEvents = '';
+    }
+    // Clear blinking animation classes
+    overlay.classList.remove('countdown-blinking');
+    if (overlayTitle) overlayTitle.classList.remove('countdown-blinking');
+    const overlayMessage = document.getElementById('overlayMessage');
+    if (overlayMessage) overlayMessage.classList.remove('countdown-blinking');
+  }
+
   // Mark key as pressed and send input IMMEDIATELY - no throttle, no delay
   keyState[key] = true;
   sendInputToServer(direction);
