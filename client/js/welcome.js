@@ -6,7 +6,7 @@
     const STEP = 20; // Size of grid cell
     const SPEED = 100; // ms per frame
     const MAX_FRUITS = 8;
-    const STORAGE_KEY = 'hasSeenWelcome';
+    // Removed localStorage check - welcome screen shows on every page load/hard refresh
 
     // State
     let overlay = null;
@@ -24,18 +24,35 @@
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (AudioContextClass) {
             audioCtx = new AudioContextClass();
+            // Unlock audio context on first user interaction
+            // Modern browsers require user gesture to enable audio
+            const unlockAudio = async () => {
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    try {
+                        await audioCtx.resume();
+                        console.log('Audio context unlocked');
+                    } catch (e) {
+                        console.warn('Failed to resume audio context:', e);
+                    }
+                }
+            };
+            // Listen for any user interaction to unlock audio
+            document.addEventListener('click', unlockAudio, { once: true });
+            document.addEventListener('touchstart', unlockAudio, { once: true });
+            document.addEventListener('keydown', unlockAudio, { once: true });
         }
     }
 
     // Sound Generator
-    function playEatSound() {
+    async function playEatSound() {
         if (!audioCtx || isMuted) return;
         
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        
         try {
+            // Ensure audio context is running
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             
@@ -56,14 +73,15 @@
         }
     }
 
-    function playClickSound() {
+    async function playClickSound() {
         if (!audioCtx || isMuted) return;
         
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        
         try {
+            // Ensure audio context is running
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             
@@ -254,12 +272,7 @@
         overlay.classList.add('hidden');
         stopAnimation();
         
-        // Mark as seen
-        try {
-            localStorage.setItem(STORAGE_KEY, 'true');
-        } catch (e) {
-            console.warn('localStorage not available:', e);
-        }
+        // Welcome screen will show again on next page load/hard refresh
         
         // Remove overlay from DOM after animation
         setTimeout(() => {
@@ -303,24 +316,13 @@
     // Initialize
     function init() {
         // Check if user has seen welcome screen
-        let hasSeenWelcome = false;
-        try {
-            hasSeenWelcome = localStorage.getItem(STORAGE_KEY) === 'true';
-        } catch (e) {
-            console.warn('localStorage not available:', e);
-        }
-
         overlay = document.getElementById('welcome-overlay');
         if (!overlay) return;
 
         snakeOverlay = overlay.querySelector('#snake-overlay');
         if (!snakeOverlay) return;
 
-        // If user has seen welcome, hide overlay immediately
-        if (hasSeenWelcome) {
-            overlay.style.display = 'none';
-            return;
-        }
+        // Welcome screen shows on every page load/hard refresh
 
         // Initialize audio
         initAudio();
