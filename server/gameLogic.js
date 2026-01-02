@@ -321,6 +321,11 @@ function advancePlayers(gameState, movingPlayers, room, enablePowerups, ioInstan
         }
       }
 
+      // In multiplayer with no wall mode and non-strict mode: players are immune to head-to-head collisions
+      if (room?.gameMode === 'multi-player' && !gameState.wallMode && !gameState.strictMode) {
+        return; // Skip collision - players can walk through each other
+      }
+
       // Head-to-head collision detected - all involved players die
       playerIds.forEach(playerId => {
         const allHaveShield = playerIds.every(id => newHeads.get(id).hasShield);
@@ -558,6 +563,11 @@ function checkCollision(gameState, player, newHead, room = null) {
         ((player.type === 'human' && otherPlayer.type === 'npc') ||
          (player.type === 'npc' && otherPlayer.type === 'human'))) {
       continue; // Skip collision check - human and NPC are immune to each other
+    }
+
+    // In multiplayer with no wall mode and non-strict mode: players are immune to each other
+    if (room?.gameMode === 'multi-player' && !gameState.wallMode && !gameState.strictMode) {
+      continue; // Skip collision check - players can walk through each other
     }
 
     // Check collision with other snake

@@ -325,7 +325,13 @@ io.on('connection', (socket) => {
         }
         
         // Session is active only if: no endTime, room exists, AND game loop is actually running
-        const isActuallyActive = !endTime && roomExists && isGameActuallyStarted;
+        // Don't mark as active if game is in ready phase (hasn't started yet)
+        let gameHasStarted = false;
+        if (roomExists) {
+          const roomForCheck = rooms.get(session.roomCode);
+          gameHasStarted = roomForCheck && roomForCheck.gameState && roomForCheck.gameState.startTime && roomForCheck.gameState.startTime > 0;
+        }
+        const isActuallyActive = !endTime && roomExists && isGameActuallyStarted && gameHasStarted;
         
         // If session has no endTime but room doesn't exist, mark it as ended
         if (!endTime && !roomExists && session.roomCode) {
@@ -340,7 +346,7 @@ io.on('connection', (socket) => {
         }
         
         // If session has no endTime, room exists, but game hasn't started yet, don't mark as active
-        // (game is in waiting/countdown phase)
+        // (game is in waiting/countdown phase) - this is correct, don't show as "in progress"
         
         const finalEndTime = endTime || null;
         const durationMs = (finalEndTime || Date.now()) - session.startTime;
@@ -520,8 +526,60 @@ io.on('connection', (socket) => {
       room.publicCreatedAt = null;
     }
 
-    // Reconnection disabled - sessions expire immediately on refresh/disconnect
-    // Removed reconnection logic to ensure players must rejoin after refresh
+    // Reconnection disabled for active games - sessions expire immediately on refresh/disconnect
+    // BUT: Allow reconnection during ready phase (before game starts) for multiplayer
+    // Check if player token exists and game hasn't started yet
+    if (room.playerTokens && room.playerTokens.has(playerToken)) {
+      const existingPlayerId = room.playerTokens.get(playerToken);
+      const existingPlayer = room.players.get(existingPlayerId);
+      if (existingPlayer) {
+        // Check if game has started - only allow reconnection if game hasn't started
+        const gameHasStarted = room.gameState && room.gameState.startTime && room.gameState.startTime > 0;
+        
+        if (!gameHasStarted && room.gameMode === 'multi-player') {
+          // Game hasn't started yet - allow reconnection during ready phase
+          if (existingPlayer.disconnectTimeoutId) {
+            clearTimeout(existingPlayer.disconnectTimeoutId);
+            existingPlayer.disconnectTimeoutId = null;
+          }
+          existingPlayer.socketId = socket.id;
+          existingPlayer.controlScheme = controlScheme || existingPlayer.controlScheme;
+          existingPlayer.disconnected = false;
+          existingPlayer.disconnectedAt = null;
+
+          mapSocketToPlayer(room, socket.id, existingPlayerId);
+          socket.join(roomCode);
+
+          socket.emit('joinedRoom', {
+            playerId: existingPlayerId,
+            isHost: existingPlayer.isHost,
+            roomCode,
+            gameMode: room.gameMode,
+            gameOptions: room.gameOptions,
+            playerToken,
+            isPublic: room.isPublic || false
+          });
+
+          devLog.log(`Player ${existingPlayer.name} reconnected to room ${roomCode} during ready phase`);
+          
+          // Send gameStarted event so they see the rules screen
+          if (room.gameState) {
+            socket.emit('gameStarted', {
+              gameState: room.gameState,
+              roomCode: roomCode,
+              playerId: existingPlayerId,
+              gameMode: room.gameMode,
+              isHost: existingPlayer.isHost
+            });
+          }
+          
+          return;
+        } else {
+          // Game has started - reconnection not allowed, token was deleted
+          devLog.log(`Reconnection blocked for ${existingPlayer.name} - game has started`);
+        }
+      }
+    }
 
     // Check if room is in single-player mode
     if (room.gameMode === 'single-player') {
@@ -1184,11 +1242,16 @@ io.on('connection', (socket) => {
     }
     
     // For multiplayer games, ensure player is in room
-    // Reconnection disabled - sessions expire immediately on refresh
+    // Allow reconnection during ready phase (before game starts) via playerToken
     if (room.gameMode === 'multi-player' && room.gameState) {
       let playerId = getPlayerIdFromSocket(room, socket.id);
-      // Removed playerToken reconnection - player must be connected via socket ID
-      // If player disconnected, their token was deleted and they cannot reconnect
+      
+      // Try to find player by token if not found by socket (reconnection during ready phase)
+      const gameStartedForReconnect = room.gameState.startTime && room.gameState.startTime > 0;
+      if (!playerId && playerToken && room.playerTokens && room.playerTokens.has(playerToken) && !gameStartedForReconnect) {
+        playerId = room.playerTokens.get(playerToken);
+        devLog.log(`Reconnecting player via token during ready phase: playerId=${playerId}, socket=${socket.id}`);
+      }
 
       const player = playerId ? room.players.get(playerId) : null;
       
@@ -1201,8 +1264,17 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Reconnection disabled - if player was disconnected, they cannot reconnect
-      if (player.disconnected) {
+      // Allow reconnection during ready phase (game not started)
+      if (player.disconnected && !gameStartedForReconnect) {
+        // Reconnect player during ready phase
+        player.disconnected = false;
+        player.disconnectedAt = null;
+        player.socketId = socket.id;
+        mapSocketToPlayer(room, socket.id, playerId);
+        socket.join(roomCode);
+        devLog.log(`Reconnected player ${player.name} during ready phase via requestGameState`);
+      } else if (player.disconnected && gameStartedForReconnect) {
+        // Game has started - reconnection not allowed
         socket.emit('gameStateError', {
           message: 'Session expired. Please rejoin the room.',
           roomCode: roomCode
@@ -1877,12 +1949,19 @@ io.on('connection', (socket) => {
        }
 
       // Immediately mark session as ended when player disconnects (page refresh)
+      // BUT: Only if game has actually started (not during ready phase)
       if (room.sessionId && gameSessions.has(room.sessionId)) {
         const session = gameSessions.get(room.sessionId);
-        if (!session.endTime) {
+        // Only mark as ended if game has started (startTime > 0)
+        // During ready phase (before game starts), don't mark session as ended yet
+        const gameHasStarted = room.gameState && room.gameState.startTime && room.gameState.startTime > 0;
+        if (!session.endTime && gameHasStarted) {
           session.endTime = Date.now();
           session.endReason = 'page_refresh_disconnect';
-          devLog.log(`Session ${room.sessionId} marked as ended immediately on disconnect`);
+          devLog.log(`Session ${room.sessionId} marked as ended immediately on disconnect (game had started)`);
+        } else if (!session.endTime && !gameHasStarted) {
+          // Game hasn't started yet - player can still rejoin during ready phase
+          devLog.log(`Session ${room.sessionId} - player disconnected during ready phase, session not ended yet`);
         }
       }
 
@@ -1891,9 +1970,17 @@ io.on('connection', (socket) => {
       }
 
       // Delete player token immediately on disconnect to prevent reconnection
+      // BUT: Keep token during ready phase (before game starts) for multiplayer to allow reconnection
+      const gameHasStarted = room.gameState && room.gameState.startTime && room.gameState.startTime > 0;
       if (room.playerTokens && player.token) {
-        room.playerTokens.delete(player.token);
-        devLog.log(`Deleted player token for ${player.name} on disconnect - session expired`);
+        if (gameHasStarted || room.gameMode !== 'multi-player') {
+          // Game has started OR not multiplayer - delete token (no reconnection)
+          room.playerTokens.delete(player.token);
+          devLog.log(`Deleted player token for ${player.name} on disconnect - session expired (game started or not multiplayer)`);
+        } else {
+          // Game hasn't started yet (ready phase) - keep token for reconnection
+          devLog.log(`Keeping player token for ${player.name} - game hasn't started yet (ready phase)`);
+        }
       }
 
       if (room.isGameActive) {
@@ -2023,6 +2110,11 @@ io.on('connection', (socket) => {
               clearTimeout(roomCleanupTimeouts.get(roomCode));
             }
 
+            // For ready phase (game not started), give more time for reconnection
+            const gameStartedForCleanup = room.gameState && room.gameState.startTime && room.gameState.startTime > 0;
+            const roomCleanupTimeout = gameStartedForCleanup ? 10000 : 30000; // 30 seconds during ready phase, 10 seconds after game starts
+            devLog.log(`Setting room cleanup timeout for ${roomCode}: ${roomCleanupTimeout}ms (gameStarted: ${gameStartedForCleanup})`);
+            
             const timeoutId = setTimeout(() => {
               const checkRoom = rooms.get(roomCode);
               const activePlayers = checkRoom ? Array.from(checkRoom.players.values()).filter(p => p.socketId) : [];
@@ -2033,16 +2125,23 @@ io.on('connection', (socket) => {
                 roomCleanupTimeouts.delete(roomCode);
                 console.log(`Room ${roomCode} deleted after timeout (no reconnection)`);
               }
-            }, 5000);
+            }, roomCleanupTimeout);
 
             roomCleanupTimeouts.set(roomCode, timeoutId);
           }
         }
       } else if (room.gameState && room.gameMode === 'multi-player') {
-        // Pre-start multiplayer: delete token immediately to prevent reconnection
+        // Pre-start multiplayer: keep token during ready phase, delete only if game started
+        const gameHasStarted = room.gameState.startTime && room.gameState.startTime > 0;
         if (room.playerTokens && player.token) {
-          room.playerTokens.delete(player.token);
-          devLog.log(`Deleted player token for ${player.name} on pre-start disconnect - session expired`);
+          if (gameHasStarted) {
+            // Game has started - delete token (no reconnection)
+            room.playerTokens.delete(player.token);
+            devLog.log(`Deleted player token for ${player.name} on pre-start disconnect - game started`);
+          } else {
+            // Game hasn't started yet (ready phase) - keep token for reconnection
+            devLog.log(`Keeping player token for ${player.name} on pre-start disconnect - ready phase`);
+          }
         }
         player.disconnected = true;
         player.disconnectedAt = Date.now();
@@ -2052,6 +2151,10 @@ io.on('connection', (socket) => {
           clearTimeout(player.disconnectTimeoutId);
         }
 
+        // For ready phase (game not started), give more time for reconnection
+        const gameStartedForTimeout = room.gameState && room.gameState.startTime && room.gameState.startTime > 0;
+        const disconnectTimeout = gameStartedForTimeout ? 10000 : 30000; // 30 seconds during ready phase, 10 seconds after game starts
+        
         player.disconnectTimeoutId = setTimeout(() => {
           const currentRoom = rooms.get(roomCode);
           if (!currentRoom) {
@@ -2064,8 +2167,12 @@ io.on('connection', (socket) => {
 
           const wasHost = currentPlayer.isHost;
           currentRoom.players.delete(playerId);
+          // Only delete token if game has started (keep during ready phase for reconnection)
           if (currentRoom.playerTokens && currentPlayer.token) {
-            currentRoom.playerTokens.delete(currentPlayer.token);
+            const gameStarted = currentRoom.gameState && currentRoom.gameState.startTime && currentRoom.gameState.startTime > 0;
+            if (gameStarted) {
+              currentRoom.playerTokens.delete(currentPlayer.token);
+            }
           }
           if (currentRoom.readyPlayers) {
             currentRoom.readyPlayers.delete(playerId);
