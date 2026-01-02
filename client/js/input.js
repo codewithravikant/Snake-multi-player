@@ -74,9 +74,23 @@ function setupInputHandlers() {
     handleKeyUp(e);
   });
 
-  // Prevent default behavior for game keys
+  // Prevent default behavior for game keys (but not when typing in input fields)
   document.addEventListener('keydown', (e) => {
     const key = e.code;
+    
+    // Don't prevent default if user is typing in an input field
+    const activeElement = document.activeElement;
+    const isTyping = activeElement && (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.isContentEditable ||
+      activeElement.contentEditable === 'true'
+    );
+    
+    if (isTyping) {
+      return; // Allow normal typing behavior
+    }
+    
     // Check if key matches player's control scheme
     if (playerControlScheme === 'wasd' && (key === 'KeyW' || key === 'KeyS' || key === 'KeyA' || key === 'KeyD')) {
       e.preventDefault();
@@ -255,6 +269,19 @@ function setupLandscapeFullscreenDetection() {
 
 function handleKeyDown(e) {
   const key = e.code;
+  
+  // Don't process game input if user is typing in an input field
+  const activeElement = document.activeElement;
+  const isTyping = activeElement && (
+    activeElement.tagName === 'INPUT' ||
+    activeElement.tagName === 'TEXTAREA' ||
+    activeElement.isContentEditable ||
+    activeElement.contentEditable === 'true'
+  );
+  
+  if (isTyping) {
+    return; // User is typing, don't process as game input
+  }
   
   // Check if key matches player's control scheme FIRST
   let direction = null;
